@@ -105,7 +105,7 @@ fn resolve_api_key(
         return Ok(String::new());
     }
 
-    if kind == ProviderKind::Custom {
+    if kind == ProviderKind::Custom || api_key_env_override.is_some() {
         return Ok(String::new());
     }
 
@@ -244,11 +244,7 @@ pub enum AnyAgent {
 }
 
 impl AnyAgent {
-    pub async fn run_print(
-        &self,
-        prompt: &str,
-        max_turns: usize,
-    ) -> anyhow::Result<String> {
+    pub async fn run_print(&self, prompt: &str, max_turns: usize) -> anyhow::Result<String> {
         match self {
             AnyAgent::OpenRouter(a) => runner::run_print(a, prompt, max_turns).await,
             AnyAgent::OpenAI(a) => runner::run_print(a, prompt, max_turns).await,
@@ -342,6 +338,7 @@ pub fn create_client(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn build_agent(
     model: AnyModel,
     cli: &Cli,
