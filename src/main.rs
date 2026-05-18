@@ -159,7 +159,8 @@ async fn main() -> anyhow::Result<()> {
         return extras::acp::serve(cli, cfg, context).await;
     }
 
-    let sandbox = sandbox::Sandbox::new(cli.resolve_sandbox(&cfg));
+    let sandbox = sandbox::Sandbox::new(cli.resolve_sandbox(&cfg))
+        .with_shell(&cli.resolve_shell(&cfg));
     let (permission, ask_tx, ask_rx) = build_permission_checker(&cli, &cfg);
 
     if let Some(perm) = &permission {
@@ -315,6 +316,7 @@ fn print_config(cli: &cli::Cli, cfg: &config::Config) {
     let no_tools = cli.resolve_no_tools(cfg);
     let no_context_files = cli.resolve_no_context_files(cfg);
     let sandbox = cli.resolve_sandbox(cfg);
+    let shell = cli.resolve_shell(cfg);
     let compact = cfg.resolve_compact_enabled();
 
     let mode = if cli.yolo || cfg.yolo.unwrap_or(false) {
@@ -352,6 +354,7 @@ fn print_config(cli: &cli::Cli, cfg: &config::Config) {
 
     print_section("Behavior", &[
         ("permission-mode", mode.to_string()),
+        ("shell", shell.to_string()),
         ("sandbox", sandbox.to_string()),
         ("no-tools", no_tools.to_string()),
         ("no-context-files", no_context_files.to_string()),

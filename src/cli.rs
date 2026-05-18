@@ -80,6 +80,12 @@ pub struct Cli {
     pub sandbox: bool,
 
     #[arg(
+        long = "shell",
+        help = "Shell binary to use for bash tool (default: bash)"
+    )]
+    pub shell: Option<String>,
+
+    #[arg(
         long = "no-context-files",
         short = 'n',
         help = "Disable AGENTS.md loading"
@@ -166,5 +172,12 @@ impl Cli {
 
     pub fn resolve_sandbox(&self, cfg: &config::Config) -> bool {
         self.sandbox || cfg.sandbox.unwrap_or(false)
+    }
+
+    pub fn resolve_shell(&self, cfg: &config::Config) -> String {
+        self.shell
+            .clone()
+            .or_else(|| cfg.shell.clone())
+            .unwrap_or_else(|| "bash".to_string())
     }
 }
