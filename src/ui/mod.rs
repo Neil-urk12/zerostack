@@ -206,6 +206,9 @@ fn spawn_event_thread(
                     Ok(event::Event::Resize(cols, rows)) => {
                         let _ = user_tx.blocking_send(UserEvent::Resize(cols, rows));
                     }
+                    Ok(event::Event::Paste(data)) => {
+                        let _ = user_tx.blocking_send(UserEvent::Paste(data));
+                    }
                     Err(_) => break,
                     _ => {}
                 }
@@ -388,6 +391,11 @@ pub async fn run_interactive(
                             renderer.clear_selection();
                             refresh_display(&mut renderer, &input, session, is_running, loop_label.as_deref(), context.current_prompt_name.as_deref(), perm_mode().as_deref())?;
                         }
+                        continue;
+                    }
+                    UserEvent::Paste(data) => {
+                        input.handle_paste(data);
+                        refresh_display(&mut renderer, &input, session, is_running, loop_label.as_deref(), context.current_prompt_name.as_deref(), perm_mode().as_deref())?;
                         continue;
                     }
                     UserEvent::Key(key) => {

@@ -25,6 +25,7 @@ pub enum UserEvent {
     ScrollUp,
     ScrollDown,
     Resize(u16, u16),
+    Paste(String),
     #[allow(dead_code)]
     MouseDown {
         row: u16,
