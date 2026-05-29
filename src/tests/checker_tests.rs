@@ -351,3 +351,132 @@ fn regex_glob_default_precedence() {
     let result = checker.check("unknown_tool", "anything");
     assert!(matches!(result, CheckResult::Allowed));
 }
+
+// --- Path traversal detection (normalize_path) ---
+
+#[test]
+fn path_traversal_with_dotdot_is_detected_as_external() {
+    let mut checker = make_checker(SecurityMode::Standard);
+    let traversal = if cfg!(windows) {
+        "C:\\home\\user\\project\\..\\etc\\shadow"
+    } else {
+        "/home/user/project/../etc/shadow"
+    };
+    let result = checker.check_path("read", traversal);
+    assert!(
+        matches!(result, CheckResult::Ask),
+        "expected Ask for traversal path, got {:?}",
+        result,
+    );
+}
+
+#[test]
+fn dot_components_are_normalized_away() {
+    let mut checker = make_checker(SecurityMode::Standard);
+    let path = if cfg!(windows) {
+        "C:\\home\\user\\project\\.\\src\\main.rs"
+    } else {
+        "/home/user/project/./src/main.rs"
+    };
+    let result = checker.check_path("read", path);
+    assert!(
+        matches!(result, CheckResult::Allowed),
+        "expected Allowed for dot-normalized CWD path, got {:?}",
+        result,
+    );
+}
+
+#[test]
+fn nested_dotdot_traverses_to_root() {
+    let mut checker = make_checker(SecurityMode::Standard);
+    let traversal = if cfg!(windows) {
+        "C:\\home\\user\\project\\..\\..\\..\\etc\\passwd"
+    } else {
+        "/home/user/project/../../../etc/passwd"
+    };
+    let result = checker.check_path("read", traversal);
+    assert!(
+        matches!(result, CheckResult::Ask),
+        "expected Ask for deep traversal path, got {:?}",
+        result,
+    );
+}
+
+// --- Session allowlist with absolute paths on check_path ---
+
+#[test]
+fn session_allowlist_matches_absolute_path_when_stored_as_relative() {
+    let mut checker = make_checker(SecurityMode::Restrictive);
+    checker.add_session_allowlist("read".into(), "src/*");
+    let result = checker.check_path("read", "/home/user/project/src/main.rs");
+    assert!(
+        matches!(result, CheckResult::Allowed),
+        "expected Allowed for absolute path matching relative allowlist, got {:?}",
+        result,
+    );
+}
+
+#[test]
+fn session_allowlist_matches_relative_path_when_stored_as_absolute() {
+    let mut checker = make_checker(SecurityMode::Restrictive);
+    checker.add_session_allowlist("read".into(), "/home/user/project/src/*");
+    let result = checker.check_path("read", "src/main.rs");
+    assert!(
+        matches!(result, CheckResult::Allowed),
+        "expected Allowed for relative path matching absolute allowlist, got {:?}",
+        result,
+    );
+}
+
+// --- MCP tool config ---
+
+#[test]
+fn mcp_tool_simple_rule_is_respected() {
+    let config = PermissionConfig {
+        mcp_tool: Some(ToolPerm::Simple(Action::Deny)),
+        ..PermissionConfig::default()
+    };
+    let mut checker =
+        PermissionChecker::new(&configs_from(config), SecurityMode::Standard, None);
+    let result = checker.check("mcp_tool", "mcp_tool:filesystem:read_file");
+    assert!(
+        matches!(result, CheckResult::Denied(_)),
+        "expected Denied for MCP tool, got {:?}",
+        result,
+    );
+}
+
+#[test]
+fn mcp_tool_granular_rules_respected() {
+    let config = PermissionConfig {
+        mcp_tool: Some(ToolPerm::Granular(
+            [
+                ("mcp_tool:fs:allow_*".to_string(), Action::Allow),
+                ("mcp_tool:fs:deny_*".to_string(), Action::Deny),
+            ]
+            .into(),
+        )),
+        ..PermissionConfig::default()
+    };
+    let mut checker =
+        PermissionChecker::new(&configs_from(config), SecurityMode::Standard, None);
+    assert_eq!(
+        checker.check("mcp_tool", "mcp_tool:fs:allow_read"),
+        CheckResult::Allowed
+    );
+    assert!(matches!(
+        checker.check("mcp_tool", "mcp_tool:fs:deny_write"),
+        CheckResult::Denied(_)
+    ));
+}
+
+#[test]
+fn mcp_tool_default_action_when_no_rules() {
+    let mut checker = make_checker(SecurityMode::Standard);
+    let result = checker.check("mcp_tool", "mcp_tool:some_server:some_tool");
+    assert!(
+        matches!(result, CheckResult::Allowed),
+        "expected Allowed for MCP tool with no rules (default), got {:?}",
+        result,
+    );
+}

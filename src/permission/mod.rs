@@ -32,6 +32,7 @@ pub struct PermissionConfig {
     pub find_files: Option<ToolPerm>,
     pub list_dir: Option<ToolPerm>,
     pub write_todo_list: Option<ToolPerm>,
+    pub mcp_tool: Option<ToolPerm>,
     pub external_directory: Option<HashMap<String, Action>>,
     pub doom_loop: Option<Action>,
     #[serde(skip_serializing_if = "Option::is_none")]

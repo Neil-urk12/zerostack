@@ -1,5 +1,5 @@
 use std::collections::{HashMap, VecDeque};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use smallvec::SmallVec;
@@ -42,6 +42,7 @@ impl PermissionChecker {
             ("find_files", &config.find_files),
             ("list_dir", &config.list_dir),
             ("write_todo_list", &config.write_todo_list),
+            ("mcp_tool", &config.mcp_tool),
         ] {
             let Some(tp) = tool_perm else { continue };
             let mut entries = Vec::new();
@@ -217,12 +218,11 @@ impl PermissionChecker {
         }
 
         let expanded = crate::fs::expand_tilde(path);
+        let abs_path = resolve_absolute(&expanded, &self.working_dir);
 
-        if self.is_session_allowed(tool, &expanded) {
+        if self.is_session_allowed(tool, &expanded) || self.is_session_allowed(tool, &abs_path) {
             return CheckResult::Allowed;
         }
-
-        let abs_path = resolve_absolute(&expanded, &self.working_dir);
         let mut matched: SmallVec<[Action; 4]> = SmallVec::new();
         if let Some(rules) = self.rules.get(tool) {
             for (pattern, action) in rules {
@@ -306,13 +306,27 @@ impl PermissionChecker {
 
     pub fn add_session_allowlist(&mut self, tool: String, pattern_str: &str) {
         let pattern = Pattern::new(pattern_str);
-        self.session_allowlist.push((tool, pattern));
+        self.session_allowlist.push((tool.clone(), pattern));
+        if self.is_path_tool(&tool) {
+            let expanded = crate::fs::expand_tilde(pattern_str);
+            let abs = resolve_absolute(&expanded, &self.working_dir);
+            if abs != expanded {
+                self.session_allowlist.push((tool, Pattern::new(&abs)));
+            }
+        }
     }
 
     pub fn load_session_allowlist(&mut self, entries: &[(String, String)]) {
         for (tool, pat) in entries {
-            self.session_allowlist
-                .push((tool.clone(), Pattern::new(pat)));
+            let pattern = Pattern::new(pat);
+            self.session_allowlist.push((tool.clone(), pattern));
+            if self.is_path_tool(tool) {
+                let expanded = crate::fs::expand_tilde(pat);
+                let abs = resolve_absolute(&expanded, &self.working_dir);
+                if abs != expanded {
+                    self.session_allowlist.push((tool.clone(), Pattern::new(&abs)));
+                }
+            }
         }
     }
 
@@ -342,7 +356,9 @@ impl PermissionChecker {
             return false;
         }
         let cwd = Path::new(&self.working_dir);
-        !p.starts_with(cwd)
+        let normalized = normalize_path(p);
+        let normalized_cwd = normalize_path(cwd);
+        !normalized.starts_with(&normalized_cwd)
     }
 
     fn match_ext_dir(&self, path_str: &str) -> Option<Action> {
@@ -380,4 +396,20 @@ fn resolve_absolute(path: &str, working_dir: &str) -> String {
     } else {
         Path::new(working_dir).join(p).to_string_lossy().to_string()
     }
+}
+
+fn normalize_path(path: &Path) -> PathBuf {
+    let mut result = PathBuf::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::ParentDir => {
+                result.pop();
+            }
+            std::path::Component::CurDir => {}
+            other => {
+                result.push(other);
+            }
+        }
+    }
+    result
 }
