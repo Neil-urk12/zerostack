@@ -183,9 +183,14 @@ impl PermissionChecker {
     }
 
     pub fn check(&mut self, tool: &str, input: &str) -> CheckResult {
+        if tool == "write_todo_list" {
+            return CheckResult::Allowed;
+        }
+
         if self.allow_all_mcp_calls && tool == "mcp_tool" {
             return CheckResult::Allowed;
         }
+
         if self.is_session_allowed(tool, input) {
             return CheckResult::Allowed;
         }
@@ -260,9 +265,10 @@ impl PermissionChecker {
     }
 
     pub fn check_path(&mut self, tool: &str, path: &str) -> CheckResult {
-        if self.allow_all_mcp_calls && tool == "mcp_tool" {
+        if tool == "write_todo_list" {
             return CheckResult::Allowed;
         }
+
         let expanded = crate::fs::expand_tilde(path);
         let abs_path = resolve_absolute(&expanded, &self.working_dir);
 

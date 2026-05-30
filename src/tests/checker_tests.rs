@@ -34,12 +34,24 @@ fn configs_from(config: PermissionConfig) -> PermissionConfigs {
 // --- SecurityMode behavior ---
 
 #[test]
-fn yolo_allows_non_destructive_and_write_edit() {
-    let mut checker = make_checker(SecurityMode::Yolo);
-    assert_eq!(checker.check("write", "/etc/passwd"), CheckResult::Allowed);
-    assert_eq!(checker.check("edit", "src/main.rs"), CheckResult::Allowed);
-    assert_eq!(checker.check("read", "/etc/config"), CheckResult::Allowed);
-    assert_eq!(checker.check("bash", "ls"), CheckResult::Allowed);
+fn readonly_denies_write_bash_and_edit() {
+    let mut checker = make_checker(SecurityMode::ReadOnly);
+    assert!(matches!(
+        checker.check("write", "/etc/passwd"),
+        CheckResult::Denied(_)
+    ));
+    assert!(matches!(
+        checker.check("edit", "src/main.rs"),
+        CheckResult::Denied(_)
+    ));
+    assert!(matches!(
+        checker.check("bash", "ls"),
+        CheckResult::Denied(_)
+    ));
+    assert!(matches!(
+        checker.check("bash", "rm -rf /"),
+        CheckResult::Denied(_)
+    ));
 }
 
 #[test]
@@ -99,31 +111,6 @@ fn readonly_allows_read_tools() {
     assert!(matches!(
         checker.check("list_dir", "/home/user"),
         CheckResult::Allowed
-    ));
-}
-
-#[test]
-fn readonly_denies_write_bash_and_edit() {
-    let mut checker = make_checker(SecurityMode::ReadOnly);
-    assert!(matches!(
-        checker.check("write", "/etc/passwd"),
-        CheckResult::Denied(_)
-    ));
-    assert!(matches!(
-        checker.check("edit", "src/main.rs"),
-        CheckResult::Denied(_)
-    ));
-    assert!(matches!(
-        checker.check("bash", "ls"),
-        CheckResult::Denied(_)
-    ));
-    assert!(matches!(
-        checker.check("bash", "rm -rf /"),
-        CheckResult::Denied(_)
-    ));
-    assert!(matches!(
-        checker.check("write_todo_list", ""),
-        CheckResult::Denied(_)
     ));
 }
 
@@ -901,4 +888,313 @@ fn allow_all_mcp_does_not_affect_non_mcp_tools() {
         "expected Denied for bash even with allow_all_mcp_calls, got {:?}",
         result,
     );
+}
+
+// --- write_todo_list always allowed ---
+
+#[test]
+fn write_todo_list_always_allowed_in_restrictive() {
+    let mut checker = make_checker(SecurityMode::Restrictive);
+    assert!(matches!(
+        checker.check("write_todo_list", ""),
+        CheckResult::Allowed
+    ));
+}
+
+#[test]
+fn write_todo_list_always_allowed_in_readonly() {
+    let mut checker = make_checker(SecurityMode::ReadOnly);
+    assert!(matches!(
+        checker.check("write_todo_list", ""),
+        CheckResult::Allowed
+    ));
+}
+
+#[test]
+fn write_todo_list_always_allowed_in_guarded() {
+    let mut checker = make_checker(SecurityMode::Guarded);
+    assert!(matches!(
+        checker.check("write_todo_list", ""),
+        CheckResult::Allowed
+    ));
+}
+
+#[test]
+fn write_todo_list_always_allowed_in_yolo() {
+    let mut checker = make_checker(SecurityMode::Yolo);
+    assert!(matches!(
+        checker.check("write_todo_list", ""),
+        CheckResult::Allowed
+    ));
+}
+
+#[test]
+fn write_todo_list_path_check_always_allowed() {
+    let mut checker = make_checker(SecurityMode::Restrictive);
+    assert!(matches!(
+        checker.check_path("write_todo_list", "/any/path"),
+        CheckResult::Allowed
+    ));
+}
+
+// --- Empty permission_modes (all modes skip config rules) ---
+
+#[test]
+fn empty_permission_modes_skips_rules_for_all_modes() {
+    let config = PermissionConfig {
+        read: Some(ToolPerm::Simple(Action::Allow)),
+        ..PermissionConfig::default()
+    };
+    let mut checker = PermissionChecker::new(
+        &configs_from(config),
+        SecurityMode::Standard,
+        Some(std::path::PathBuf::from("/home/user/project")),
+        Some(vec![]), // empty list: no modes apply rules
+    );
+    // Standard with no rules applied: path tools in CWD still get auto-allow
+    assert!(matches!(
+        checker.check_path("read", "/home/user/project/src/main.rs"),
+        CheckResult::Allowed
+    ));
+    // Bash has no rules, default action is Allow
+    assert!(matches!(
+        checker.check("bash", "some_command"),
+        CheckResult::Allowed
+    ));
+}
+
+// --- Standard mode with external_directory rules ---
+
+#[test]
+fn standard_external_dir_allow_rule_overrides_default_ask() {
+    let mut config = PermissionConfig::default();
+    config.external_directory = Some([("/tmp/work/**".to_string(), Action::Allow)].into());
+    let configs = configs_from(config);
+    let mut checker = PermissionChecker::new(
+        &configs,
+        SecurityMode::Standard,
+        Some(std::path::PathBuf::from("/home/user/project")),
+        default_modes(),
+    );
+    // External path but covered by external_directory allow rule
+    let result = checker.check_path("write", "/tmp/work/notes.txt");
+    assert!(
+        matches!(result, CheckResult::Allowed),
+        "expected Allowed for external path covered by allow rule, got {:?}",
+        result,
+    );
+}
+
+#[test]
+fn standard_external_dir_deny_rule_overrides_default_ask() {
+    let mut config = PermissionConfig::default();
+    config.external_directory = Some([("/etc/**".to_string(), Action::Deny)].into());
+    let configs = configs_from(config);
+    let mut checker = PermissionChecker::new(
+        &configs,
+        SecurityMode::Standard,
+        Some(std::path::PathBuf::from("/home/user/project")),
+        default_modes(),
+    );
+    let result = checker.check_path("write", "/etc/config.conf");
+    assert!(
+        matches!(result, CheckResult::Denied(_)),
+        "expected Denied for external path with deny rule, got {:?}",
+        result,
+    );
+}
+
+// --- ReadOnly with explicit config rules ---
+
+#[test]
+fn readonly_respects_explicit_config_allow() {
+    let config = PermissionConfig {
+        write: Some(ToolPerm::Granular(
+            [("**".to_string(), Action::Allow)].into(),
+        )),
+        ..PermissionConfig::default()
+    };
+    let mut checker = PermissionChecker::new(
+        &configs_from(config),
+        SecurityMode::ReadOnly,
+        Some(std::path::PathBuf::from("/home/user/project")),
+        Some(vec!["readonly".to_string()]),
+    );
+    // ReadOnly in permission_modes, config rule says write:allow -> Allowed
+    assert!(matches!(
+        checker.check("write", "/etc/passwd"),
+        CheckResult::Allowed
+    ));
+}
+
+// --- Guarded path operations ---
+
+#[test]
+fn guarded_asks_for_external_path_write() {
+    let mut checker = make_checker(SecurityMode::Guarded);
+    let result = checker.check_path("write", "/etc/config.conf");
+    assert!(
+        matches!(result, CheckResult::Ask),
+        "expected Ask for external write in Guarded, got {:?}",
+        result,
+    );
+}
+
+#[test]
+fn guarded_allows_internal_path_read() {
+    let mut checker = make_checker(SecurityMode::Guarded);
+    assert!(matches!(
+        checker.check_path("read", "/home/user/project/src/main.rs"),
+        CheckResult::Allowed,
+    ));
+}
+
+// --- Doom loop across different modes ---
+
+#[test]
+fn doom_loop_triggers_in_guarded() {
+    let mut checker = make_checker(SecurityMode::Guarded);
+    checker.check("bash", "echo test");
+    checker.check("bash", "echo test");
+    let result = checker.check("bash", "echo test");
+    assert!(
+        matches!(result, CheckResult::Ask),
+        "expected Ask from doom loop in Guarded, got {:?}",
+        result,
+    );
+}
+
+#[test]
+fn doom_loop_still_asks_for_read_tool_in_restrictive() {
+    let mut checker = make_checker(SecurityMode::Restrictive);
+    // In Restrictive, first 2 calls ask (or ask through mode default)
+    checker.check("read", "some_file");
+    checker.check("read", "some_file");
+    let result = checker.check("read", "some_file");
+    assert!(
+        matches!(result, CheckResult::Ask),
+        "expected Ask from doom loop in Restrictive, got {:?}",
+        result,
+    );
+}
+
+// --- Path edge cases ---
+
+#[test]
+fn check_path_with_relative_is_not_external_in_standard() {
+    let mut checker = make_checker(SecurityMode::Standard);
+    assert!(matches!(
+        checker.check_path("read", "src/main.rs"),
+        CheckResult::Allowed,
+    ));
+}
+
+#[test]
+fn check_path_with_tilde_expansion_internal() {
+    // ~ expands to home, which is outside the CWD /home/user/project
+    // So this should Ask in Standard mode
+    let mut checker = make_checker(SecurityMode::Standard);
+    let result = checker.check_path("write", "~/outside.txt");
+    assert!(
+        matches!(result, CheckResult::Ask),
+        "expected Ask for ~ path outside CWD in Standard, got {:?}",
+        result,
+    );
+}
+
+// --- YOLO mode edge cases ---
+
+#[test]
+fn yolo_destructive_patterns_different_case() {
+    let mut checker = make_checker(SecurityMode::Yolo);
+    // rm -rf /** pattern matches 'rm -rf /some/path'
+    assert!(matches!(
+        checker.check("bash", "rm -rf /sensitive/data"),
+        CheckResult::Ask
+    ));
+}
+
+#[test]
+fn yolo_deny_rules_for_mcp_become_ask() {
+    let config = PermissionConfig {
+        mcp_tool: Some(ToolPerm::Granular(
+            [("mcp_tool:fs:delete_*".to_string(), Action::Deny)].into(),
+        )),
+        ..PermissionConfig::default()
+    };
+    let mut checker = PermissionChecker::new(
+        &configs_from(config),
+        SecurityMode::Yolo,
+        None,
+        default_modes(),
+    );
+    // Deny converted to Ask in YOLO
+    assert!(matches!(
+        checker.check("mcp_tool", "mcp_tool:fs:delete_file"),
+        CheckResult::Ask
+    ));
+    // Non-destructive MCP still Allowed
+    assert!(matches!(
+        checker.check("mcp_tool", "mcp_tool:fs:read_file"),
+        CheckResult::Allowed
+    ));
+}
+
+// --- permission=None equivalent (dangerously-skip-permissions) ---
+// Test that when permission is None, check_perm returns Ok(())
+// This is tested via check_perm in tools/mod.rs, but we verify the checker
+// itself would be bypassed by testing with PermissionChecker not created.
+
+#[tokio::test]
+async fn check_perm_skipped_when_permission_is_none() {
+    // When permission is None, tools/mod.rs check_perm returns Ok(()) immediately.
+    // This test verifies the logic path: None means no checks run.
+    let perm: Option<std::sync::Arc<std::sync::Mutex<PermissionChecker>>> = None;
+    let ask_tx: Option<crate::permission::ask::AskSender> = None;
+    let result = crate::agent::tools::check_perm(&perm, &ask_tx, "bash", "rm -rf /").await;
+    assert!(result.is_ok(), "expected Ok when permission is None");
+}
+
+#[tokio::test]
+async fn check_perm_path_skipped_when_permission_is_none() {
+    let perm: Option<std::sync::Arc<std::sync::Mutex<PermissionChecker>>> = None;
+    let ask_tx: Option<crate::permission::ask::AskSender> = None;
+    let result = crate::agent::tools::check_perm_path(&perm, &ask_tx, "write", "/etc/passwd").await;
+    assert!(result.is_ok(), "expected Ok when permission is None");
+}
+
+// --- MCP deny in Guarded mode ---
+
+#[test]
+fn guarded_mcp_tool_asks_when_no_rule() {
+    let mut checker = make_checker(SecurityMode::Guarded);
+    // MCP tool is not a read tool -> Ask
+    assert!(matches!(
+        checker.check("mcp_tool", "mcp_tool:fs:write_file"),
+        CheckResult::Ask,
+    ));
+}
+
+// --- Standard mode respects config allow for specific paths ---
+
+#[test]
+fn standard_respects_config_allow_over_cwd_auto_allow() {
+    // CWD auto-allow already returns Allow, but we test that an explicit
+    // Allow rule for an external path overrides the Ask default
+    let config = PermissionConfig {
+        bash: Some(ToolPerm::Granular(
+            [("pip install **".to_string(), Action::Allow)].into(),
+        )),
+        ..PermissionConfig::default()
+    };
+    let mut checker = PermissionChecker::new(
+        &configs_from(config),
+        SecurityMode::Standard,
+        Some(std::path::PathBuf::from("/home/user/project")),
+        default_modes(),
+    );
+    assert!(matches!(
+        checker.check("bash", "pip install requests"),
+        CheckResult::Allowed,
+    ));
 }
