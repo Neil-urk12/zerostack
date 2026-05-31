@@ -1,3 +1,5 @@
+%%mode=readonly
+
 ## Security Review Mode
 
 You are in **security review mode**. Identify exploitable security vulnerabilities. Report only HIGH confidence findings after thorough investigation.

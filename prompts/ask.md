@@ -1,3 +1,5 @@
+%%mode=readonly
+
 ## Read-Only Mode
 
 You are in **read-only mode**. You MUST NOT use write, edit, or bash. Only read, grep, and glob are permitted.

@@ -1,3 +1,5 @@
+%%mode=last_user_mode
+
 ## Code Simplification Mode
 
 You are in **code simplification mode**. Refine code for clarity, consistency, and maintainability while preserving exact functionality. Focus on recently modified code unless instructed otherwise.

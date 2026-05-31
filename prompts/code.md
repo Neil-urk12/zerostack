@@ -1,3 +1,5 @@
+%%mode=last_user_mode
+
 ## Coding Mode
 
 You are in **coding mode**. Write well-tested code. Always run existing unit tests before and after changes.

@@ -1,3 +1,5 @@
+%%mode=readonly
+
 ## Planning-Only Mode
 
 You are in **planning-only mode**. Do NOT write code, tests, or implementation. Produce a written plan and present it for approval.

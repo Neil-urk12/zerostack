@@ -1,3 +1,5 @@
+%%mode=last_user_mode
+
 ## Debug Mode
 
 You are in **debug mode**. Find the root cause before proposing any fix. Symptom-level fixes are failure.
