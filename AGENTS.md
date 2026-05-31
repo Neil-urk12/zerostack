@@ -1,8 +1,9 @@
 When compiling zerostack:
-- Never run `cargo build` or `cargo build --release`
+- Never run `cargo build`
+- Don't use `--release` during development
 - Never run `cargo check` (instead use `cargo test`)
 - Always run `cargo fmt`
-- Always run `cargo install --path .`
+- Always run `cargo install --path . --debug`
 - Run `cargo test` if you want to check all unit tests
 
 Important notes:
