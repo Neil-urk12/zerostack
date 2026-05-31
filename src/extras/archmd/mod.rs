@@ -1,10 +1,12 @@
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 const DIRS_ASKED_FILE: &str = "dirs_asked_architecture.txt";
 
-fn dirs_asked_path() -> std::path::PathBuf {
-    crate::session::storage::data_dir().join(DIRS_ASKED_FILE)
+fn dirs_asked_path() -> PathBuf {
+    let dir = crate::session::storage::data_dir();
+    let _ = std::fs::create_dir_all(&dir);
+    dir.join(DIRS_ASKED_FILE)
 }
 
 const ARCHITECTURE_TEMPLATE: &str = "# Architecture
@@ -32,51 +34,25 @@ with the full picture. Keep the document under ~300 lines
     of code total. Keep entries concise and link to specific source files.
 ";
 
+// ---------------------------------------------------------------------------
+// Public API (uses global asked_path)
+// ---------------------------------------------------------------------------
+
 pub fn has_been_asked(dir: &Path) -> bool {
-    let canonical = dir.canonicalize().ok();
-    let target = canonical.as_deref().unwrap_or(dir);
-    let asked_path = dirs_asked_path();
-    if !asked_path.exists() {
-        return false;
-    }
-    let content = std::fs::read_to_string(&asked_path).unwrap_or_default();
-    for line in content.lines() {
-        if let Ok(asked_dir) = std::path::PathBuf::from(line).canonicalize() {
-            if asked_dir == target {
-                return true;
-            }
-        }
-    }
-    false
+    has_been_asked_with_path(dir, &dirs_asked_path())
 }
 
-fn record_asked_dir(dir: &Path) {
-    let asked_path = dirs_asked_path();
-    let dir_str = dir.to_string_lossy().to_string();
-    let mut content = String::new();
-    if asked_path.exists() {
-        content = std::fs::read_to_string(&asked_path).unwrap_or_default();
-    }
-    if !content.ends_with('\n') && !content.is_empty() {
-        content.push('\n');
-    }
-    content.push_str(&dir_str);
-    content.push('\n');
-    let _ = std::fs::write(&asked_path, content);
-}
-
-fn create_architecture_template(dir: &Path) -> anyhow::Result<()> {
-    let path = dir.join("ARCHITECTURE.md");
-    if path.exists() {
-        return Ok(());
-    }
-    std::fs::write(&path, ARCHITECTURE_TEMPLATE)?;
-    Ok(())
+pub(crate) fn record_asked_dir(dir: &Path) -> anyhow::Result<()> {
+    record_asked_dir_with_path(dir, &dirs_asked_path())
 }
 
 pub fn should_ask(dir: &Path) -> bool {
+    should_ask_with_path(dir, &dirs_asked_path())
+}
+
+pub(crate) fn should_ask_with_path(dir: &Path, asked_path: &Path) -> bool {
     let arch_path = dir.join("ARCHITECTURE.md");
-    !arch_path.exists() && !has_been_asked(dir)
+    !arch_path.exists() && !has_been_asked_with_path(dir, asked_path)
 }
 
 pub fn ask_and_create(dir: &Path) -> anyhow::Result<bool> {
@@ -88,12 +64,14 @@ pub fn ask_and_create(dir: &Path) -> anyhow::Result<bool> {
         "No ARCHITECTURE.md found in {}. Create one? [y/N] ",
         dir.display()
     );
-    let _ = std::io::stdout().flush();
+    std::io::stdout().flush()?;
     let mut input = String::new();
-    let _ = std::io::stdin().read_line(&mut input);
+    std::io::stdin().read_line(&mut input)?;
     let input = input.trim().to_lowercase();
 
-    record_asked_dir(dir);
+    if let Err(e) = record_asked_dir(dir) {
+        tracing::warn!("Failed to record asked directory: {e}");
+    }
 
     if input == "y" || input == "yes" {
         create_architecture_template(dir)?;
@@ -105,4 +83,54 @@ pub fn ask_and_create(dir: &Path) -> anyhow::Result<bool> {
     } else {
         Ok(false)
     }
+}
+
+// ---------------------------------------------------------------------------
+// Inner functions with explicit asked_path (testable)
+// ---------------------------------------------------------------------------
+
+pub(crate) fn has_been_asked_with_path(dir: &Path, asked_path: &Path) -> bool {
+    let canonical = dir.canonicalize().ok();
+    let target = canonical.as_deref().unwrap_or(dir);
+    if !asked_path.exists() {
+        return false;
+    }
+    let content = std::fs::read_to_string(asked_path).unwrap_or_default();
+    for line in content.lines() {
+        if let Ok(asked_dir) = PathBuf::from(line).canonicalize() {
+            if asked_dir == target {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+pub(crate) fn record_asked_dir_with_path(dir: &Path, asked_path: &Path) -> anyhow::Result<()> {
+    if let Some(parent) = asked_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let dir_str = dir.to_string_lossy().to_string();
+    let mut content = String::new();
+    if asked_path.exists() {
+        content = std::fs::read_to_string(asked_path).unwrap_or_default();
+    }
+    if !content.ends_with('\n') && !content.is_empty() {
+        content.push('\n');
+    }
+    content.push_str(&dir_str);
+    content.push('\n');
+    let tmp = asked_path.with_extension("tmp");
+    std::fs::write(&tmp, &content)?;
+    std::fs::rename(&tmp, asked_path)?;
+    Ok(())
+}
+
+pub(crate) fn create_architecture_template(dir: &Path) -> anyhow::Result<()> {
+    let path = dir.join("ARCHITECTURE.md");
+    if path.exists() {
+        return Ok(());
+    }
+    std::fs::write(&path, ARCHITECTURE_TEMPLATE)?;
+    Ok(())
 }

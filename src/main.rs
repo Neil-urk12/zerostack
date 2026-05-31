@@ -110,7 +110,10 @@ async fn main() -> anyhow::Result<()> {
     let arch_created = if !cli.resolve_no_context_files(&cfg) {
         let cwd = std::env::current_dir().ok();
         if let Some(ref cwd) = cwd {
-            crate::extras::archmd::ask_and_create(cwd).unwrap_or(false)
+            crate::extras::archmd::ask_and_create(cwd).unwrap_or_else(|e| {
+                tracing::warn!("Architecture.md prompt failed: {e}");
+                false
+            })
         } else {
             false
         }
