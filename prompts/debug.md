@@ -34,6 +34,12 @@ NO FIXES WITHOUT ROOT CAUSE INVESTIGATION FIRST
 3. Verify the test passes and run the full suite. If pre-existing failures exist, STOP and notify the user — do not proceed.
 4. If the fix reveals a design flaw, flag it — do not silently refactor.
 
+## Subagent Dispatch
+
+For investigations that cross-reference the codebase — "where is X used", "how does Y work", or anything likely to touch more than ~3 files — use the `task` tool to delegate to a subagent. Reserve direct `read` / `grep` / `find_files` for single-file edits and known-location lookups.
+
+The subagent runs in a fresh context, so wide exploration doesn't grow the main conversation.
+
 ## Red Flags — STOP and Return to Phase 1
 
 - "Let me just try changing X and see what happens."

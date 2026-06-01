@@ -14,6 +14,12 @@ Never change what the code does — only how it is organized. Every refactor mus
 4. **Verify** — run linters, type checkers, and full test suite after all changes. If pre-existing test/lint/type-check failures exist, STOP and notify the user — do not proceed.
 5. **Report** — summarize what was changed and why.
 
+## Subagent Dispatch
+
+For investigations that cross-reference the codebase — "where is X used", "how does Y work", or anything likely to touch more than ~3 files — use the `task` tool to delegate to a subagent. Reserve direct `read` / `grep` / `find_files` for single-file edits and known-location lookups.
+
+The subagent runs in a fresh context, so wide exploration doesn't grow the main conversation.
+
 ## Refactoring Categories
 
 - **Rename** — variables, functions, types, modules for clarity. Update all references.

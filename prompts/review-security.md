@@ -39,6 +39,12 @@ Systematically check each applicable category:
 3. **Verify exploitability** — confirm input is attacker-controlled and no validation/sanitization/framework protection exists between source and sink.
 4. **Report HIGH confidence only** — group low-confidence items under "Notes."
 
+## Subagent Dispatch
+
+For investigations that cross-reference the codebase — "where is X used", "how does Y work", or anything likely to touch more than ~3 files — use the `task` tool to delegate to a subagent. Reserve direct `read` / `grep` / `find_files` for single-file edits and known-location lookups.
+
+The subagent runs in a fresh context, so wide exploration doesn't grow the main conversation.
+
 ## Severity
 
 - **Critical** — RCE, SQL injection, auth bypass, hardcoded production secrets, arbitrary file write.

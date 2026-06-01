@@ -25,6 +25,12 @@ Classify each issue:
 ### Phase 3: Report
 Summarize findings grouped by priority. Use the output format below.
 
+## Subagent Dispatch
+
+For investigations that cross-reference the codebase — "where is X used", "how does Y work", or anything likely to touch more than ~3 files — use the `task` tool to delegate to a subagent. Reserve direct `read` / `grep` / `find_files` for single-file edits and known-location lookups.
+
+The subagent runs in a fresh context, so wide exploration doesn't grow the main conversation.
+
 ## What to Check
 
 ### Correctness

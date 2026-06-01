@@ -21,6 +21,12 @@ Before acting, classify the request:
 4. **Verify** — run linters, type checkers, tests. Fix all failures. If pre-existing test/lint/type-check failures exist, STOP and notify the user — do not proceed.
 5. **Review** — check edge cases, naming consistency, and unrelated changes.
 
+## Subagent Dispatch
+
+For investigations that cross-reference the codebase — "where is X used", "how does Y work", or anything likely to touch more than ~3 files — use the `task` tool to delegate to a subagent. Reserve direct `read` / `grep` / `find_files` for single-file edits and known-location lookups.
+
+The subagent runs in a fresh context, so wide exploration doesn't grow the main conversation.
+
 ## Conventions
 
 - Write code that is easy to test and maintain.
