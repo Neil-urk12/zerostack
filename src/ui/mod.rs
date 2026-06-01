@@ -482,6 +482,18 @@ pub async fn run_interactive(
                                     ls.active = false;
                                     loop_label = None;
                                 }
+                                if let Some(restore_name) = dot_prompt_restore.take() {
+                                    context.current_prompt = context.prompts.get(&restore_name).cloned();
+                                    context.current_prompt_name = if context.current_prompt.is_some() {
+                                        Some(restore_name)
+                                    } else {
+                                        None
+                                    };
+                                    if let Some(perm) = &permission {
+                                        let mut guard = perm.lock().unwrap_or_else(|e| e.into_inner());
+                                        guard.restore_user_mode();
+                                    }
+                                }
                                 renderer.write_line("interrupted", C_ERROR)?;
                                 refresh_display(&mut renderer, &input, session, is_running, loop_label.as_deref(), context.current_prompt_name.as_deref(), perm_mode().as_deref())?;
                             } else {
