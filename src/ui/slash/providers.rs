@@ -41,9 +41,7 @@ pub(crate) async fn fetch_models_cached(
             return Ok(hit); // guard dropped here, NOT across any await
         }
         // No cache yet: serve the baked catalog for built-in providers — no network.
-        if !is_custom
-            && let Some(mut models) = crate::models_catalog::catalog_entries(provider)
-        {
+        if !is_custom && let Some(mut models) = crate::models_catalog::catalog_entries(provider) {
             models.retain(crate::provider::is_agent_model);
             MODEL_CACHE
                 .lock()

@@ -191,7 +191,7 @@ pub enum ShowToolDetails {
 
 impl Default for ShowToolDetails {
     fn default() -> Self {
-        ShowToolDetails::Lines(3)
+        ShowToolDetails::Lines(1)
     }
 }
 

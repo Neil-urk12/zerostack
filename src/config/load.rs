@@ -139,6 +139,7 @@ fn rich_default_config() -> Config {
     cfg.default_permission_mode = Some("standard".to_string());
     cfg.default_prompt = Some(CompactString::new("code"));
     cfg.show_tool_details = Some(ShowToolDetails::Lines(1));
+    cfg.subagent_model = Some(CompactString::new("deepseek-v4-flash"));
     cfg
 }
 
