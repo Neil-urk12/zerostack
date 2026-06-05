@@ -46,6 +46,7 @@ impl LineColor {
             LineColor::CodeBlock => colors.code_block,
             LineColor::LinkText => colors.link_text,
             LineColor::PromptMarker => colors.prompt_marker,
+
         }
     }
 }

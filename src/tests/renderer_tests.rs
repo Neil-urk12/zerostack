@@ -66,6 +66,7 @@ fn line_color_resolve_default_colors() {
     assert_eq!(LineColor::PromptMarker.resolve(&colors), Color::Green);
 }
 
+
 #[test]
 fn line_color_resolve_custom_colors() {
     let mut colors = UiColors::default_colors();
