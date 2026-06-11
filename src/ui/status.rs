@@ -23,6 +23,7 @@ impl StatusLine {
         loop_label: Option<&str>,
         prompt_name: Option<&str>,
         perm_mode: Option<&str>,
+        chain_label: Option<&str>,
         btw_cost: f64,
         btw_in: u64,
         btw_out: u64,
@@ -92,8 +93,13 @@ impl StatusLine {
             _ => String::new(),
         };
 
+        let chain_badge = match chain_label {
+            Some(label) => format!(" | {}", label),
+            None => String::new(),
+        };
+
         format!(
-            "{}{}{} | {}{} | {}/{} ({}%) | {}msgs{}{} | {}{}{}",
+            "{}{}{} | {}{} | {}/{} ({}%) | {}msgs{}{} | {}{}{}{}",
             dir,
             cost_str,
             btw_badge,
@@ -108,6 +114,7 @@ impl StatusLine {
             state,
             prompt_badge,
             perm_badge,
+            chain_badge,
         )
     }
 }

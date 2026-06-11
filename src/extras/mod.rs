@@ -22,6 +22,7 @@ pub mod archmd;
 #[cfg(feature = "advisor")]
 pub mod advisor;
 
+pub mod chain;
 pub mod multimodal;
 
 pub mod status_signals;

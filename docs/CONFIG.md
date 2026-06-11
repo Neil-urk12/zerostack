@@ -478,6 +478,49 @@ The mode change is applied when the prompt is activated and persists
 until changed again by `/mode`, another prompt directive, or a restart.
 The status bar shows `| mode:<name>` when the mode is not `standard`.
 
+## Chain-of-Prompts
+
+When enabled, after the agent finishes responding with a `brainstorm`, `plan`,
+or `code` prompt, the status bar shows `Continue to <next>? [Yes/But/No]`.
+The user's next input is interpreted as a chain decision:
+
+- **Yes** (`y`/`yes`) — switch to the next prompt and auto-submit a transition message.
+- **But** (`but <msg>` / `b <msg>` / `yes but <msg>`) — same as yes, but prepend
+  `<msg>` as an additional instruction to the transition message.
+- **No** (`n`/`no`) — decline the chain, continue normally.
+
+Typing anything that doesn't match these patterns clears the chain and
+processes the input as a normal message.
+
+### Phases
+
+| Transition | Default | Description |
+|-----------|---------|-------------|
+| `brainstorm-to-plan` | `true` | After brainstorming, prompt to move to planning |
+| `plan-to-code` | `true` | After planning, prompt to start coding |
+| `code-to-review` | `false` | After coding, prompt to run a review |
+
+### TOML
+
+```toml
+[chain]
+brainstorm-to-plan = true
+plan-to-code = true
+code-to-review = false
+```
+
+### JSON
+
+```json
+{
+  "chain": {
+    "brainstorm-to-plan": true,
+    "plan-to-code": true,
+    "code-to-review": false
+  }
+}
+```
+
 ## Advisor
 
 The advisor tool lets the agent consult a stronger reviewer model (or the
