@@ -645,6 +645,9 @@ impl Renderer {
         let sep_above = input_top.saturating_sub(1);
         if sep_above < input_top {
             stdout.execute(MoveTo(0, sep_above))?;
+            if let Some(bg) = self.input_bg {
+                write!(stdout, "{}", SetBackgroundColor(self.color(bg)))?;
+            }
             write!(
                 stdout,
                 "{}",
@@ -708,6 +711,9 @@ impl Renderer {
         let sep_below = rows.saturating_sub(2);
         if sep_below < rows.saturating_sub(1) {
             stdout.execute(MoveTo(0, sep_below))?;
+            if let Some(bg) = self.input_bg {
+                write!(stdout, "{}", SetBackgroundColor(self.color(bg)))?;
+            }
             write!(
                 stdout,
                 "{}",
